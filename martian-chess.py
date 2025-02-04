@@ -119,17 +119,17 @@ class Game():
     
     def select_space(self, loc: tuple[int, int]) -> None:
         
-        print(self.selected_piece)
         space = self.get_grid_space(loc)
         
-        if space.piece == None and self.selected_piece:
-            self.selected_piece.move_piece(space)
-            print("Moving")
+        if space.piece == None :
+            if self.selected_piece:
+                self.selected_piece.move_piece(space)
         
         elif space.piece._player == self.current_player:
             self.selected_piece = space.piece
+            self.selected_piece.select()
             return
-        else:
+        elif self.selected_piece != None:
             self.selected_piece.move_piece(space)
         
         self.selected_piece = None
@@ -166,18 +166,25 @@ class Piece(ABC, pygame.sprite.Sprite):
     def switch_player(self, player: int):
         self._player = player
         
+    def select(self):
+        self.get_movement_options()
+        
     def move_piece(self, space: Space) -> None:
         
-        self.get_movement_options()
+        self.select()
         
         if space not in self.move_options:
             return
         
+        self.move_lines.clear()
+        
         space.piece = self
-        self.current_space = None
-        self.current_space = space
+        self._space.piece = None
+        self._space = space
             
-    def calculate_movement(self, move: tuple[int, int]) -> tuple:
+    def calculate_movement(self, move: tuple[int, int]) -> tuple[tuple[int, int]]:
+        
+        moves = []
         
         row, column = self.space.grid_position
         x, y = move
@@ -194,23 +201,30 @@ class Piece(ABC, pygame.sprite.Sprite):
                 column + x_movement < 0 or column + x_movement >= GRID_SPACES[0]:
                     break
                 
-            obstacle = self.game.grid[row + y][column + x]
+            obstacle = self.game.get_grid_space((row + y, column + x)).piece
             
             if obstacle == None:
                 step += 1
+                
+                x_location = (step * x * PIXEL_SIZE * SPACE_SIZE) + self.space.world_position[0]
+                y_location = (step * y * PIXEL_SIZE * SPACE_SIZE) + self.space.world_position[1]
+                
+                moves.append([x_location, y_location])
+            
             elif obstacle._player != self._player:
                 step += 1
+        
+                x_location = (step * x * PIXEL_SIZE * SPACE_SIZE) + self.space.world_position[0]
+                y_location = (step * y * PIXEL_SIZE * SPACE_SIZE) + self.space.world_position[1]
+                
+                moves.append([x_location, y_location])
+                
                 break
-            else:
+            
+            elif obstacle._player == self._player:
                 break
         
-        x_location = (step * x * PIXEL_SIZE * SPACE_SIZE) + self.space.world_position[0]
-        y_location = (step * y * PIXEL_SIZE * SPACE_SIZE) + self.space.world_position[1]
-        
-        if step == 0:
-            return None
-        
-        return [x_location, y_location]
+        return moves
     
     def get_movement_options(self) -> None:
         
@@ -221,10 +235,12 @@ class Piece(ABC, pygame.sprite.Sprite):
             for y in range(-1 ,2):
                 movement = self.calculate_movement((x, y))
                 
-                if movement:
-                    space = get_space(movement)
+                for move in movement:
+                    
+                    space = self.game.get_grid_space(get_space(move))
+                    
                     self.move_options.append(space)
-                    self.move_lines.append([self.rect.center, movement])
+                    self.move_lines.append([self.rect.center, move])
 
 class Pawn(Piece):
     def __init__(self, game: Game, spawn_space: Space, player: int):
@@ -234,6 +250,9 @@ class Pawn(Piece):
         self.image = s_PAWNS[random.randint(0, len(s_PAWNS) - 1)]
         self.rect = self.image.get_rect()
         self.rect.center = spawn_space.world_position
+    
+    def update(self):
+        self.rect.center = self.space.world_position
     
     @property
     def moves(self):
@@ -249,6 +268,9 @@ class Drone(Piece):
         self.image = s_DRONES[random.randint(0, len(s_DRONES) - 1)]
         self.rect = self.image.get_rect()
         self.rect.center = spawn_space.world_position
+    
+    def update(self):
+        self.rect.center = self.space.world_position
         
     @property
     def moves(self):
@@ -264,6 +286,9 @@ class Queen(Piece):
         self.image = s_QUEENS[random.randint(0, len(s_QUEENS) - 1)]
         self.rect = self.image.get_rect()
         self.rect.center = spawn_space.world_position
+    
+    def update(self):
+        self.rect.center = self.space.world_position
         
     @property
     def moves(self):
@@ -315,7 +340,9 @@ while run:
     
     if game == None:
         game = Game()
-            
+    
+    game.pieces.update()
+    
     game.pieces.draw(screen)
     
     if game.selected_piece != None:
