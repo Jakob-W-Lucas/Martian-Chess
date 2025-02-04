@@ -54,10 +54,18 @@ s_DRONES = [get_image(die_sprite_sheet_image, x, 1, SPACE_SIZE, SPACE_SIZE, PIXE
 s_QUEENS = [get_image(die_sprite_sheet_image, x, 2, SPACE_SIZE, SPACE_SIZE, PIXEL_SIZE, BLACK) for x in range(6)]
 
 # Die abstract base class
-class Die(ABC, pygame.sprite.Sprite):
+class Piece(ABC, pygame.sprite.Sprite):
     
-    def __init__(self):
-        pass
+    def __init__(self, player: int):
+        pygame.sprite.Sprite.__init__(self)
+        self._player = player
+    
+    @property
+    def player(self) -> int:
+        return self._player
+    
+    def switch_player(self, player: int):
+        self._player = player
 
     def click(self) -> None:
         self.display_moves()
@@ -77,9 +85,9 @@ class Die(ABC, pygame.sprite.Sprite):
         pass
 
 
-class Pawn(Die):
-    def __init__(self, spawn: tuple[int, int]):
-        super().__init__()
+class Pawn(Piece):
+    def __init__(self, spawn: tuple[int, int], player: int):
+        super().__init__(player)
         
         pygame.sprite.Sprite.__init__(self)
         self.image = s_PAWNS[random.randint(0, len(s_PAWNS) - 1)]
@@ -92,9 +100,9 @@ class Pawn(Die):
                   [0, 0, 0],
                   [1, 0, 1]]
 
-class Drone(Die):
-    def __init__(self, spawn: tuple[int, int]):
-        super().__init__()
+class Drone(Piece):
+    def __init__(self, spawn: tuple[int, int], player: int):
+        super().__init__(player)
         
         pygame.sprite.Sprite.__init__(self)
         self.image = s_DRONES[random.randint(0, len(s_DRONES) - 1)]
@@ -107,9 +115,9 @@ class Drone(Die):
                     [2, 0, 2],
                     [0, 2, 0]]
 
-class Queen(Die):
-    def __init__(self, spawn: tuple[int, int]):
-        super().__init__()
+class Queen(Piece):
+    def __init__(self, spawn: tuple[int, int], player: int):
+        super().__init__(player)
         
         pygame.sprite.Sprite.__init__(self)
         self.image = s_QUEENS[random.randint(0, len(s_QUEENS) - 1)]
@@ -131,6 +139,8 @@ class Game():
         self.grid = [[] for _ in range(len(GRID))]
         self.pieces = self.create_pieces()
         
+        self.move_lines = []
+        
     def create_pieces(self) -> pygame.sprite.Group:
         
         pieces = pygame.sprite.Group()
@@ -141,17 +151,19 @@ class Game():
                 x = column * PIXEL_SIZE * SPACE_SIZE + (PIXEL_SIZE * SPACE_SIZE // 2) + column * PIXEL_SIZE
                 y = row * PIXEL_SIZE * SPACE_SIZE + (PIXEL_SIZE * SPACE_SIZE // 2) + row * PIXEL_SIZE
                 
+                player = 1 if y < SCREEN_HEIGHT // 2 else 2
+                
                 match num:
                     case 0:
                         piece = None
                     case 1:
-                        piece = Queen((x, y))
+                        piece = Queen((x, y), player)
                         pieces.add(piece)
                     case 2:
-                        piece = Drone((x, y))
+                        piece = Drone((x, y), player)
                         pieces.add(piece)
                     case 3:
-                        piece = Pawn((x, y))
+                        piece = Pawn((x, y), player)
                         pieces.add(piece)
                     case _:
                         print("Grid has not been initialized correctly")
@@ -161,22 +173,57 @@ class Game():
         
         return pieces
     
-    def get_space(self, loc: tuple[int, int]) -> Die:
-        return self.grid[loc[1]][loc[0]]
-
-def get_space(pos: tuple[int]) -> tuple[int, int]:
+    def get_piece_in_space(self, loc: tuple[int, int]) -> Piece:
+        return self.grid[loc[0]][loc[1]]
     
-    x, y = pos
+    def calculate_movement(self, piece: Piece, loc: tuple[int, int], move: tuple[int, int]) -> tuple:
+        
+        row, column = loc
+        x, y = move
+        
+        move_distance = piece.moves[1 + x][1 + y]
+                
+        step = 0 
+        for _ in range(move_distance):
+            
+            x_movement = x * (step + 1)
+            y_movement = y * (step + 1)
+            
+            if row + y_movement < 0 or row + y_movement >= GRID_SPACES[1] or\
+                column + x_movement < 0 or column + x_movement >= GRID_SPACES[0]:
+                    break
+                
+            obstacle = self.grid[row + y][column + x]
+            
+            if obstacle == None:
+                step += 1
+            elif obstacle._player != piece._player:
+                step += 1
+                break
+            else:
+                break
+        
+        x_total_distance = (step * x * PIXEL_SIZE * SPACE_SIZE) + piece.rect.centerx
+        y_total_distance = (step * y * PIXEL_SIZE * SPACE_SIZE) + piece.rect.centery
+        
+        if step == 0:
+            return None
+        
+        return [x_total_distance, y_total_distance]
     
-    row = x // SPACE_SIZE
-    column = y // SPACE_SIZE
-    
-    # Return nothing if coords are outside bounds
-    if row >= GRID_SPACES[0] or column >= GRID_SPACES[1] or\
-        row < 0 or column < 0:
-        return None
-    
-    return [row, column]
+    def draw_move_lines(self, loc: tuple[int, int]) -> None:
+        
+        self.move_lines.clear()
+        
+        piece = self.get_piece_in_space(loc)
+        
+        for x in range(-1, 2):
+            for y in range(-1 ,2):
+                
+                movement = self.calculate_movement(piece, loc, (x, y))
+                
+                if movement:
+                    self.move_lines.append([piece.rect.center, movement])
 
 def in_sprite_area(pos: tuple[int, int], sprite: pygame.sprite.Sprite) -> bool:
     
@@ -196,11 +243,11 @@ def get_clicked_space(pos: tuple[int, int]) -> tuple[int, int] | None:
     x_dist = SCREEN_WIDTH // GRID_SPACES[0]
     y_dist = SCREEN_HEIGHT // GRID_SPACES[1]
     
-    row     = pos[0] // x_dist
-    column  = pos[1] // y_dist
+    column  = pos[0] // x_dist
+    row     = pos[1] // y_dist
     
-    if row < 0 or row >= GRID_SPACES[0] or\
-        column < 0 or column >= GRID_SPACES[1]:
+    if row < 0 or row >= GRID_SPACES[1] or\
+        column < 0 or column >= GRID_SPACES[0]:
             return None
         
     return [row, column]
@@ -223,6 +270,9 @@ while run:
             
     game.pieces.draw(screen)
     
+    for line in game.move_lines:
+        pygame.draw.line(screen, CRT_WHITE, line[0], line[1], width=10)
+    
     # Get key presses
     key = pygame.key.get_pressed()
         
@@ -240,7 +290,8 @@ while run:
             # Left click to mine cells
             if event.button == m_LEFT:
                 loc = get_clicked_space(pos)
-                print(f"The space: {loc} has piece: {game.get_space(loc)}")
+                piece = game.get_piece_in_space(loc)
+                game.draw_move_lines(loc)
 
         # Quit the game
         if event.type == pygame.QUIT:
