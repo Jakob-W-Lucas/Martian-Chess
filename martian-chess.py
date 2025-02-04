@@ -53,99 +53,31 @@ s_PAWNS  = [get_image(die_sprite_sheet_image, x, 0, SPACE_SIZE, SPACE_SIZE, PIXE
 s_DRONES = [get_image(die_sprite_sheet_image, x, 1, SPACE_SIZE, SPACE_SIZE, PIXEL_SIZE, BLACK) for x in range(4)]
 s_QUEENS = [get_image(die_sprite_sheet_image, x, 2, SPACE_SIZE, SPACE_SIZE, PIXEL_SIZE, BLACK) for x in range(6)]
 
-# Die abstract base class
-class Piece(ABC, pygame.sprite.Sprite):
-    
-    def __init__(self, player: int):
-        pygame.sprite.Sprite.__init__(self)
-        self._player = player
-    
-    @property
-    def player(self) -> int:
-        return self._player
-    
-    def switch_player(self, player: int):
-        self._player = player
-
-    def click(self) -> None:
-        self.display_moves()
-
-    def display_moves(self) -> None:
-        pass
-    
-    def place(self, column: int, row: int) -> None:
-        pass
-    
-    def capture(self) -> None:
-        pass
-    
-    @property
-    @abstractmethod
-    def moves(self):
-        pass
-
-
-class Pawn(Piece):
-    def __init__(self, spawn: tuple[int, int], player: int):
-        super().__init__(player)
-        
-        pygame.sprite.Sprite.__init__(self)
-        self.image = s_PAWNS[random.randint(0, len(s_PAWNS) - 1)]
-        self.rect = self.image.get_rect()
-        self.rect.center = spawn
-    
-    @property
-    def moves(self):
-        return [  [1, 0, 1],
-                  [0, 0, 0],
-                  [1, 0, 1]]
-
-class Drone(Piece):
-    def __init__(self, spawn: tuple[int, int], player: int):
-        super().__init__(player)
-        
-        pygame.sprite.Sprite.__init__(self)
-        self.image = s_DRONES[random.randint(0, len(s_DRONES) - 1)]
-        self.rect = self.image.get_rect()
-        self.rect.center = spawn
-        
-    @property
-    def moves(self):
-        return [    [0, 2, 0],
-                    [2, 0, 2],
-                    [0, 2, 0]]
-
-class Queen(Piece):
-    def __init__(self, spawn: tuple[int, int], player: int):
-        super().__init__(player)
-        
-        pygame.sprite.Sprite.__init__(self)
-        self.image = s_QUEENS[random.randint(0, len(s_QUEENS) - 1)]
-        self.rect = self.image.get_rect()
-        self.rect.center = spawn
-        
-    @property
-    def moves(self):
-        min_diag_dist = min(GRID_SPACES[0], GRID_SPACES[1]) 
-        
-        return [    [min_diag_dist, GRID_SPACES[1], min_diag_dist],
-                    [GRID_SPACES[0], 0, GRID_SPACES[0]],
-                    [min_diag_dist, GRID_SPACES[1], min_diag_dist]]
+class Space():
+    def __init__(self, world_position: tuple[int, int]):
+        self.world_position = world_position
+        self.grid_position = get_space(world_position)
+        self.piece = None
 
 class Game():
     def __init__(self):
+        # Player 1 starts
+        self.current_player = 1
         self.player_score_1 = 0
         self.player_score_2 = 0
-        self.grid = [[] for _ in range(len(GRID))]
+        self.grid = []
         self.pieces = self.create_pieces()
         
-        self.move_lines = []
-        
+        self.selected_piece = None
+    
     def create_pieces(self) -> pygame.sprite.Group:
         
         pieces = pygame.sprite.Group()
     
         for row in range(len(GRID)):
+            
+            space_row = []
+            
             for column, num in enumerate(GRID[row]):
                 
                 x = column * PIXEL_SIZE * SPACE_SIZE + (PIXEL_SIZE * SPACE_SIZE // 2) + column * PIXEL_SIZE
@@ -153,35 +85,104 @@ class Game():
                 
                 player = 1 if y < SCREEN_HEIGHT // 2 else 2
                 
+                new_space = Space((x, y))
+                space_row.append(new_space)
+                
                 match num:
                     case 0:
                         piece = None
                     case 1:
-                        piece = Queen((x, y), player)
-                        pieces.add(piece)
+                        piece = Queen(self, new_space, player)
                     case 2:
-                        piece = Drone((x, y), player)
-                        pieces.add(piece)
+                        piece = Drone(self, new_space, player)
                     case 3:
-                        piece = Pawn((x, y), player)
-                        pieces.add(piece)
+                        piece = Pawn(self, new_space, player)
                     case _:
                         print("Grid has not been initialized correctly")
                         return None
                 
-                self.grid[row].append(piece)
+                if piece != None:
+                    pieces.add(piece)
+                    new_space.piece = piece
+                
+            
+            self.grid.append(space_row)
         
         return pieces
     
-    def get_piece_in_space(self, loc: tuple[int, int]) -> Piece:
+    def get_grid_space(self, loc: tuple[int, int]) -> Space | None:
+        
+        if loc[0] > GRID_SPACES[0] or loc[1] >= GRID_SPACES[1]:
+            return None
+        
         return self.grid[loc[0]][loc[1]]
     
-    def calculate_movement(self, piece: Piece, loc: tuple[int, int], move: tuple[int, int]) -> tuple:
+    def select_space(self, loc: tuple[int, int]) -> None:
         
-        row, column = loc
+        print(self.selected_piece)
+        space = self.get_grid_space(loc)
+        
+        if space.piece == None and self.selected_piece:
+            self.selected_piece.move_piece(space)
+            print("Moving")
+        
+        elif space.piece._player == self.current_player:
+            self.selected_piece = space.piece
+            return
+        else:
+            self.selected_piece.move_piece(space)
+        
+        self.selected_piece = None
+    
+# Die abstract base class
+class Piece(ABC, pygame.sprite.Sprite):
+    
+    def __init__(self, game: Game, space: Space, player: int):
+        pygame.sprite.Sprite.__init__(self)
+        self._game = game
+        self._space = space
+        self._player = player
+        
+        self.move_options = []
+        self.move_lines = []
+    
+    @property
+    def game(self) -> Game:
+        return self._game
+    
+    @property
+    def space(self) -> Space:
+        return self._space
+    
+    @property
+    def player(self) -> int:
+        return self._player
+    
+    @property
+    @abstractmethod
+    def moves(self):
+        pass
+    
+    def switch_player(self, player: int):
+        self._player = player
+        
+    def move_piece(self, space: Space) -> None:
+        
+        self.get_movement_options()
+        
+        if space not in self.move_options:
+            return
+        
+        space.piece = self
+        self.current_space = None
+        self.current_space = space
+            
+    def calculate_movement(self, move: tuple[int, int]) -> tuple:
+        
+        row, column = self.space.grid_position
         x, y = move
         
-        move_distance = piece.moves[1 + x][1 + y]
+        move_distance = self.moves[1 + x][1 + y]
                 
         step = 0 
         for _ in range(move_distance):
@@ -193,38 +194,85 @@ class Game():
                 column + x_movement < 0 or column + x_movement >= GRID_SPACES[0]:
                     break
                 
-            obstacle = self.grid[row + y][column + x]
+            obstacle = self.game.grid[row + y][column + x]
             
             if obstacle == None:
                 step += 1
-            elif obstacle._player != piece._player:
+            elif obstacle._player != self._player:
                 step += 1
                 break
             else:
                 break
         
-        x_total_distance = (step * x * PIXEL_SIZE * SPACE_SIZE) + piece.rect.centerx
-        y_total_distance = (step * y * PIXEL_SIZE * SPACE_SIZE) + piece.rect.centery
+        x_location = (step * x * PIXEL_SIZE * SPACE_SIZE) + self.space.world_position[0]
+        y_location = (step * y * PIXEL_SIZE * SPACE_SIZE) + self.space.world_position[1]
         
         if step == 0:
             return None
         
-        return [x_total_distance, y_total_distance]
+        return [x_location, y_location]
     
-    def draw_move_lines(self, loc: tuple[int, int]) -> None:
+    def get_movement_options(self) -> None:
         
         self.move_lines.clear()
-        
-        piece = self.get_piece_in_space(loc)
+        self.move_options.clear()
         
         for x in range(-1, 2):
             for y in range(-1 ,2):
-                
-                movement = self.calculate_movement(piece, loc, (x, y))
+                movement = self.calculate_movement((x, y))
                 
                 if movement:
-                    self.move_lines.append([piece.rect.center, movement])
+                    space = get_space(movement)
+                    self.move_options.append(space)
+                    self.move_lines.append([self.rect.center, movement])
 
+class Pawn(Piece):
+    def __init__(self, game: Game, spawn_space: Space, player: int):
+        super().__init__(game, spawn_space, player)
+        
+        pygame.sprite.Sprite.__init__(self)
+        self.image = s_PAWNS[random.randint(0, len(s_PAWNS) - 1)]
+        self.rect = self.image.get_rect()
+        self.rect.center = spawn_space.world_position
+    
+    @property
+    def moves(self):
+        return [  [1, 0, 1],
+                  [0, 0, 0],
+                  [1, 0, 1]]
+
+class Drone(Piece):
+    def __init__(self, game: Game, spawn_space: Space, player: int):
+        super().__init__(game, spawn_space, player)
+        
+        pygame.sprite.Sprite.__init__(self)
+        self.image = s_DRONES[random.randint(0, len(s_DRONES) - 1)]
+        self.rect = self.image.get_rect()
+        self.rect.center = spawn_space.world_position
+        
+    @property
+    def moves(self):
+        return [    [0, 2, 0],
+                    [2, 0, 2],
+                    [0, 2, 0]]
+
+class Queen(Piece):
+    def __init__(self, game: Game, spawn_space: Space, player: int):
+        super().__init__(game, spawn_space, player)
+        
+        pygame.sprite.Sprite.__init__(self)
+        self.image = s_QUEENS[random.randint(0, len(s_QUEENS) - 1)]
+        self.rect = self.image.get_rect()
+        self.rect.center = spawn_space.world_position
+        
+    @property
+    def moves(self):
+        min_diag_dist = min(GRID_SPACES[0], GRID_SPACES[1]) 
+        
+        return [    [min_diag_dist, GRID_SPACES[1], min_diag_dist],
+                    [GRID_SPACES[0], 0, GRID_SPACES[0]],
+                    [min_diag_dist, GRID_SPACES[1], min_diag_dist]]
+        
 def in_sprite_area(pos: tuple[int, int], sprite: pygame.sprite.Sprite) -> bool:
     
     x_center, y_center = sprite.rect.center
@@ -238,7 +286,7 @@ def in_sprite_area(pos: tuple[int, int], sprite: pygame.sprite.Sprite) -> bool:
 
     return True
 
-def get_clicked_space(pos: tuple[int, int]) -> tuple[int, int] | None:
+def get_space(pos: tuple[int, int]) -> tuple[int, int] | None:
     
     x_dist = SCREEN_WIDTH // GRID_SPACES[0]
     y_dist = SCREEN_HEIGHT // GRID_SPACES[1]
@@ -270,8 +318,9 @@ while run:
             
     game.pieces.draw(screen)
     
-    for line in game.move_lines:
-        pygame.draw.line(screen, CRT_WHITE, line[0], line[1], width=10)
+    if game.selected_piece != None:
+        for line in game.selected_piece.move_lines:
+            pygame.draw.line(screen, CRT_WHITE, line[0], line[1], width=10)
     
     # Get key presses
     key = pygame.key.get_pressed()
@@ -289,9 +338,8 @@ while run:
             
             # Left click to mine cells
             if event.button == m_LEFT:
-                loc = get_clicked_space(pos)
-                piece = game.get_piece_in_space(loc)
-                game.draw_move_lines(loc)
+                loc = get_space(pos)
+                game.select_space(loc)
 
         # Quit the game
         if event.type == pygame.QUIT:
