@@ -51,7 +51,7 @@ def get_image(sheet, frame_x, frame_y, width, height, scale, color):
 # Images:
 s_PAWNS  = [get_image(die_sprite_sheet_image, x, 0, SPACE_SIZE, SPACE_SIZE, PIXEL_SIZE, BLACK) for x in range(6)]
 s_DRONES = [get_image(die_sprite_sheet_image, x, 1, SPACE_SIZE, SPACE_SIZE, PIXEL_SIZE, BLACK) for x in range(4)]
-s_QUEENS = [get_image(die_sprite_sheet_image, x, 2, SPACE_SIZE, SPACE_SIZE, PIXEL_SIZE, BLACK) for x in range(4)]
+s_QUEENS = [get_image(die_sprite_sheet_image, x, 2, SPACE_SIZE, SPACE_SIZE, PIXEL_SIZE, BLACK) for x in range(6)]
 
 # Die abstract base class
 class Die(ABC, pygame.sprite.Sprite):
@@ -75,7 +75,7 @@ class Die(ABC, pygame.sprite.Sprite):
     @abstractmethod
     def moves(self):
         pass
-    
+
 
 class Pawn(Die):
     def __init__(self, spawn: tuple[int, int]):
@@ -103,9 +103,9 @@ class Drone(Die):
         
     @property
     def moves(self):
-        return [    [0, GRID_SPACES[1], 0],
-                    [GRID_SPACES[0], 0, GRID_SPACES[0]],
-                    [0, GRID_SPACES[1], 0]]
+        return [    [0, 2, 0],
+                    [2, 0, 2],
+                    [0, 2, 0]]
 
 class Queen(Die):
     def __init__(self, spawn: tuple[int, int]):
@@ -118,18 +118,51 @@ class Queen(Die):
         
     @property
     def moves(self):
-        max_diag_dist = max(GRID_SPACES[0], GRID_SPACES[1]) 
+        min_diag_dist = min(GRID_SPACES[0], GRID_SPACES[1]) 
         
-        return [    [max_diag_dist, GRID_SPACES[1], max_diag_dist],
+        return [    [min_diag_dist, GRID_SPACES[1], min_diag_dist],
                     [GRID_SPACES[0], 0, GRID_SPACES[0]],
-                    [max_diag_dist, GRID_SPACES[1], max_diag_dist]]
+                    [min_diag_dist, GRID_SPACES[1], min_diag_dist]]
 
 class Game():
-    def __init__(self, pieces):
+    def __init__(self):
         self.player_score_1 = 0
         self.player_score_2 = 0
+        self.grid = [[] for _ in range(len(GRID))]
+        self.pieces = self.create_pieces()
         
-        self.pieces = pieces
+    def create_pieces(self) -> pygame.sprite.Group:
+        
+        pieces = pygame.sprite.Group()
+    
+        for row in range(len(GRID)):
+            for column, num in enumerate(GRID[row]):
+                
+                x = column * PIXEL_SIZE * SPACE_SIZE + (PIXEL_SIZE * SPACE_SIZE // 2) + column * PIXEL_SIZE
+                y = row * PIXEL_SIZE * SPACE_SIZE + (PIXEL_SIZE * SPACE_SIZE // 2) + row * PIXEL_SIZE
+                
+                match num:
+                    case 0:
+                        piece = None
+                    case 1:
+                        piece = Queen((x, y))
+                        pieces.add(piece)
+                    case 2:
+                        piece = Drone((x, y))
+                        pieces.add(piece)
+                    case 3:
+                        piece = Pawn((x, y))
+                        pieces.add(piece)
+                    case _:
+                        print("Grid has not been initialized correctly")
+                        return None
+                
+                self.grid[row].append(piece)
+        
+        return pieces
+    
+    def get_space(self, loc: tuple[int, int]) -> Die:
+        return self.grid[loc[1]][loc[0]]
 
 def get_space(pos: tuple[int]) -> tuple[int, int]:
     
@@ -144,38 +177,40 @@ def get_space(pos: tuple[int]) -> tuple[int, int]:
         return None
     
     return [row, column]
-    
-def create_game() -> Game:
 
-    pieces = pygame.sprite.Group()
+def in_sprite_area(pos: tuple[int, int], sprite: pygame.sprite.Sprite) -> bool:
     
-    for row in range(len(GRID)):
-        for column, num in enumerate(GRID[row]):
-            
-            x = column * PIXEL_SIZE * SPACE_SIZE + (PIXEL_SIZE * SPACE_SIZE // 2)
-            y = row * PIXEL_SIZE * SPACE_SIZE + (PIXEL_SIZE * SPACE_SIZE // 2)
-            
-            print(f"x: {x}, y: {y}")
-            
-            match num:
-                case 1:
-                    pieces.add(Queen((x, y)))
-                case 2:
-                    pieces.add(Drone((x, y)))
-                case 3:
-                    pieces.add(Pawn((x, y)))
-                case _:
-                    continue
-                
-    if len(pieces) == 0:
-        print("Game grid not configured correctly")
-        return
+    x_center, y_center = sprite.rect.center
     
-    return Game(pieces)
+    width = (sprite.width * PIXEL_SIZE // 2)
+    height = (sprite.height * PIXEL_SIZE // 2)
+    
+    if pos[0] < x_center - width or pos[0] > x_center + width or\
+        pos[1] < y_center - height or pos[1] > y_center + height:
+            return False
+
+    return True
+
+def get_clicked_space(pos: tuple[int, int]) -> tuple[int, int] | None:
+    
+    x_dist = SCREEN_WIDTH // GRID_SPACES[0]
+    y_dist = SCREEN_HEIGHT // GRID_SPACES[1]
+    
+    row     = pos[0] // x_dist
+    column  = pos[1] // y_dist
+    
+    if row < 0 or row >= GRID_SPACES[0] or\
+        column < 0 or column >= GRID_SPACES[1]:
+            return None
+        
+    return [row, column]
 
 # Game state
 run = True
 game = None
+
+# Mouse buttons
+m_LEFT = 1
 
 # Game loop
 while run:
@@ -184,7 +219,7 @@ while run:
     screen.fill(CRT_BLACK)
     
     if game == None:
-        game = create_game()
+        game = Game()
             
     game.pieces.draw(screen)
     
@@ -201,6 +236,11 @@ while run:
             
             # Mouse position
             pos = pygame.mouse.get_pos()
+            
+            # Left click to mine cells
+            if event.button == m_LEFT:
+                loc = get_clicked_space(pos)
+                print(f"The space: {loc} has piece: {game.get_space(loc)}")
 
         # Quit the game
         if event.type == pygame.QUIT:
