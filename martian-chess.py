@@ -15,6 +15,8 @@ GRID = [    [1, 1, 2, 0],
 
 GRID_SPACES = [len(GRID[0]), len(GRID)]
 
+TOTAL_PLAYERS = 2
+
 # Scale size for each game pixel
 PIXEL_SIZE = 6
 # Size of each game cell
@@ -33,7 +35,7 @@ CRT_BLACK = (24, 14, 26)          # CRT Black
 BLACK = (0, 0, 0)
 
 # Load the sprite sheets
-die_sprite_sheet_image = pygame.image.load('sprites/die.png').convert_alpha()
+pyramid_sprite_sheet_image = pygame.image.load('sprites/pyramid.png').convert_alpha()
 
 # Get the individual images from the sprite sheet
 def get_image(sheet, frame_x, frame_y, width, height, scale, color):
@@ -48,10 +50,17 @@ def get_image(sheet, frame_x, frame_y, width, height, scale, color):
     
     return image
 
-# Images:
-s_PAWNS  = [get_image(die_sprite_sheet_image, x, 0, SPACE_SIZE, SPACE_SIZE, PIXEL_SIZE, BLACK) for x in range(6)]
-s_DRONES = [get_image(die_sprite_sheet_image, x, 1, SPACE_SIZE, SPACE_SIZE, PIXEL_SIZE, BLACK) for x in range(4)]
-s_QUEENS = [get_image(die_sprite_sheet_image, x, 2, SPACE_SIZE, SPACE_SIZE, PIXEL_SIZE, BLACK) for x in range(6)]
+s_QUEEN = []
+for y in range(GRID_SPACES[1] * 2):
+    s_QUEEN.append([get_image(pyramid_sprite_sheet_image, x, y, SPACE_SIZE, SPACE_SIZE, PIXEL_SIZE, BLACK) for x in range(4)])
+
+s_DRONE = []
+for y in range(GRID_SPACES[1] * 2):
+    s_DRONE.append([get_image(pyramid_sprite_sheet_image, x + GRID_SPACES[0], y, SPACE_SIZE, SPACE_SIZE, PIXEL_SIZE, BLACK) for x in range(4)])
+
+s_PAWN = []
+for y in range(GRID_SPACES[1] * 2):
+    s_PAWN.append([get_image(pyramid_sprite_sheet_image, x + GRID_SPACES[0] * 2, y, SPACE_SIZE, SPACE_SIZE, PIXEL_SIZE, BLACK) for x in range(4)])
 
 class Space():
     def __init__(self, world_position: tuple[int, int]):
@@ -62,13 +71,14 @@ class Space():
 class Game():
     def __init__(self):
         # Player 1 starts
-        self.current_player = 1
-        self.player_score_1 = 0
-        self.player_score_2 = 0
+        self.current_player = 0
+        self.player_scores = [0, 0]
+        self.captures = ([], [])
         self.grid = []
         self.pieces = self.create_pieces()
         
         self.selected_piece = None
+        self.last_selected_piece = None
     
     def create_pieces(self) -> pygame.sprite.Group:
         
@@ -83,7 +93,7 @@ class Game():
                 x = column * PIXEL_SIZE * SPACE_SIZE + (PIXEL_SIZE * SPACE_SIZE // 2) + column * PIXEL_SIZE
                 y = row * PIXEL_SIZE * SPACE_SIZE + (PIXEL_SIZE * SPACE_SIZE // 2) + row * PIXEL_SIZE
                 
-                player = 1 if y < SCREEN_HEIGHT // 2 else 2
+                player = int(y > SCREEN_HEIGHT // 2)
                 
                 new_space = Space((x, y))
                 space_row.append(new_space)
@@ -110,6 +120,11 @@ class Game():
         
         return pieces
     
+    def capture(self, player: int, piece):
+        self.captures[player].append(piece)
+        self.player_scores[player] += piece._value
+        print(self.player_scores)
+    
     def get_grid_space(self, loc: tuple[int, int]) -> Space | None:
         
         if loc[0] > GRID_SPACES[1] or loc[1] >= GRID_SPACES[0]:
@@ -129,27 +144,31 @@ class Game():
         if space.piece == None :
             if self.selected_piece:
                 self.selected_piece.move_piece(space)
-        
         elif space.piece._player == self.current_player:
+            
             self.selected_piece = space.piece
             self.selected_piece.select()
             return
         elif self.selected_piece != None:
-            self.selected_piece.move_piece(space)
+            self.selected_piece.capture_piece(space)
         
+        self.last_selected_piece = self.selected_piece
         self.selected_piece = None
     
 # Die abstract base class
 class Piece(ABC, pygame.sprite.Sprite):
     
-    def __init__(self, game: Game, space: Space, player: int):
+    def __init__(self, game: Game, space: Space, value: int, player: int):
         pygame.sprite.Sprite.__init__(self)
         self._game = game
         self._space = space
+        self._value = value
         self._player = player
         
         self.move_options = []
         self.move_lines = []
+        
+        self.switched_from_position = None
     
     @property
     def game(self) -> Game:
@@ -160,16 +179,21 @@ class Piece(ABC, pygame.sprite.Sprite):
         return self._space
     
     @property
+    def value(self) -> int:
+        return self._value
+    
+    @property
     def player(self) -> int:
         return self._player
+
+    @abstractmethod
+    def get_image(self):
+        pass
     
     @property
     @abstractmethod
     def moves(self):
         pass
-    
-    def switch_player(self, player: int):
-        self._player = player
         
     def select(self):
         self.get_movement_options()
@@ -181,11 +205,35 @@ class Piece(ABC, pygame.sprite.Sprite):
         if space not in self.move_options:
             return
         
+        old_player = self.player
+        self._player = int(space.world_position[1] > SCREEN_HEIGHT // 2)
+        
+        if old_player != self.player:
+            self.switched_from_position = self.space.grid_position
+        else:
+            self.switched_space = None
+        
         self.move_lines.clear()
         
         space.piece = self
         self._space.piece = None
         self._space = space
+        self.get_image()
+        
+        self.game.current_player = (self.game.current_player + 1) % TOTAL_PLAYERS
+    
+    def capture_piece(self, space: Space) -> None:
+        
+        if space not in self.move_options:
+            return
+        
+        self.game.capture(self.player, space.piece)
+        
+        self.game.pieces.remove(space.piece)
+        
+        space.piece = None
+        
+        self.move_piece(space)
             
     def calculate_movement(self, move: tuple[int, int]) -> tuple[tuple[int, int]]:
         
@@ -194,7 +242,7 @@ class Piece(ABC, pygame.sprite.Sprite):
         row, column = self.space.grid_position
         x, y = move
         
-        move_distance = self.moves[1 + x][1 + y]
+        move_distance = self.moves[1 + y][1 + x]
                 
         step = 0 
         for _ in range(move_distance):
@@ -236,17 +284,25 @@ class Piece(ABC, pygame.sprite.Sprite):
                     
                     space = self.game.get_grid_space(get_space(move))
                     
+                    if space.grid_position == self.switched_from_position and self == self.game.last_selected_piece:
+                        continue
+                        
                     self.move_options.append(space)
                     self.move_lines.append([self.rect.center, move])
 
 class Pawn(Piece):
     def __init__(self, game: Game, spawn_space: Space, player: int):
-        super().__init__(game, spawn_space, player)
+        super().__init__(game, spawn_space, 1, player)
         
         pygame.sprite.Sprite.__init__(self)
-        self.image = s_PAWNS[random.randint(0, len(s_PAWNS) - 1)]
+        
+        self.get_image()
         self.rect = self.image.get_rect()
         self.rect.center = spawn_space.world_position
+    
+    def get_image(self) -> None:
+        column, row = self._space.grid_position
+        self.image = s_PAWN[column + GRID_SPACES[1] * self._player][row]
     
     def update(self):
         self.rect.center = self.space.world_position
@@ -259,12 +315,18 @@ class Pawn(Piece):
 
 class Drone(Piece):
     def __init__(self, game: Game, spawn_space: Space, player: int):
-        super().__init__(game, spawn_space, player)
+        super().__init__(game, spawn_space, 2, player)
         
         pygame.sprite.Sprite.__init__(self)
-        self.image = s_DRONES[random.randint(0, len(s_DRONES) - 1)]
+        
+        self.get_image()
         self.rect = self.image.get_rect()
         self.rect.center = spawn_space.world_position
+    
+    
+    def get_image(self) -> None:
+        column, row = self._space.grid_position
+        self.image = s_DRONE[column + GRID_SPACES[1] * self._player][row]
     
     def update(self):
         self.rect.center = self.space.world_position
@@ -277,12 +339,17 @@ class Drone(Piece):
 
 class Queen(Piece):
     def __init__(self, game: Game, spawn_space: Space, player: int):
-        super().__init__(game, spawn_space, player)
+        super().__init__(game, spawn_space, 3, player)
         
         pygame.sprite.Sprite.__init__(self)
-        self.image = s_QUEENS[random.randint(0, len(s_QUEENS) - 1)]
+        
+        self.get_image()
         self.rect = self.image.get_rect()
         self.rect.center = spawn_space.world_position
+        
+    def get_image(self) -> None:
+        column, row = self._space.grid_position
+        self.image = s_QUEEN[column + GRID_SPACES[1] * self._player][row]
     
     def update(self):
         self.rect.center = self.space.world_position
