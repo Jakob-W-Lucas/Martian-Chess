@@ -112,7 +112,8 @@ class Game():
     
     def get_grid_space(self, loc: tuple[int, int]) -> Space | None:
         
-        if loc[0] > GRID_SPACES[0] or loc[1] >= GRID_SPACES[1]:
+        if loc[0] > GRID_SPACES[1] or loc[1] >= GRID_SPACES[0]:
+            print(f"Grid space {loc} is outside of range")
             return None
         
         return self.grid[loc[0]][loc[1]]
@@ -120,6 +121,10 @@ class Game():
     def select_space(self, loc: tuple[int, int]) -> None:
         
         space = self.get_grid_space(loc)
+        
+        if space == None:
+            print(f"The position {loc} has no space")
+            return
         
         if space.piece == None :
             if self.selected_piece:
@@ -201,27 +206,19 @@ class Piece(ABC, pygame.sprite.Sprite):
                 column + x_movement < 0 or column + x_movement >= GRID_SPACES[0]:
                     break
                 
-            obstacle = self.game.get_grid_space((row + y, column + x)).piece
+            obstacle = self.game.get_grid_space((row + y_movement, column + x_movement)).piece
             
-            if obstacle == None:
+            if obstacle is None or obstacle._player != self._player:
                 step += 1
                 
                 x_location = (step * x * PIXEL_SIZE * SPACE_SIZE) + self.space.world_position[0]
                 y_location = (step * y * PIXEL_SIZE * SPACE_SIZE) + self.space.world_position[1]
                 
-                moves.append([x_location, y_location])
-            
-            elif obstacle._player != self._player:
-                step += 1
-        
-                x_location = (step * x * PIXEL_SIZE * SPACE_SIZE) + self.space.world_position[0]
-                y_location = (step * y * PIXEL_SIZE * SPACE_SIZE) + self.space.world_position[1]
+                moves.append((x_location, y_location))
                 
-                moves.append([x_location, y_location])
-                
-                break
-            
-            elif obstacle._player == self._player:
+                if obstacle is not None:
+                    break
+            else:
                 break
         
         return moves
