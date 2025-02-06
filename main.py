@@ -48,7 +48,9 @@ def main():
                 # Left click to mine cells
                 if event.button == m_LEFT:
                     loc = get_space(pos)
-                    game.select_space(loc)
+                    
+                    if loc:
+                        game.select_space(loc)
 
             # Quit the game
             if event.type == pygame.QUIT:

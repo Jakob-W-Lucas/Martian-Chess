@@ -19,15 +19,20 @@ TOTAL_PLAYERS = 2
 PIXEL_SIZE = 6
 # Size of each game cell
 SPACE_SIZE = 21
+# Offset of the game board on the screen
+GAME_BOARD_OFFSET = [500, 50]
+# Size of the game board
+GAME_BOARD_SIZE = (GRID_SPACES[0] * SPACE_SIZE * PIXEL_SIZE + (GRID_SPACES[0] + 1) * PIXEL_SIZE,
+                   GRID_SPACES[1] * SPACE_SIZE * PIXEL_SIZE + (GRID_SPACES[1] + 1) * PIXEL_SIZE)
 
-SCREEN_WIDTH = GRID_SPACES[0] * SPACE_SIZE * PIXEL_SIZE + (GRID_SPACES[0] + 1) * PIXEL_SIZE
-SCREEN_HEIGHT = GRID_SPACES[1] * SPACE_SIZE * PIXEL_SIZE + (GRID_SPACES[1] + 1) * PIXEL_SIZE
+SCREEN_WIDTH = GAME_BOARD_SIZE[0] + GAME_BOARD_OFFSET[0] * 2
+SCREEN_HEIGHT = GAME_BOARD_SIZE[1] + GAME_BOARD_OFFSET[1] * 2
 
 # Colors:
-CRT_WHITE = (213, 224, 216)       # White
-CRT_GREY  = (139, 143, 140)       # Grey
+CRT_WHITE = (213, 224, 216)       # CRT White
+CRT_GREY  = (139, 143, 140)       # CRT Grey
 CRT_BLACK = (24, 14, 26)          # CRT Black
-BLACK = (0, 0, 0)
+BLACK = (0, 0, 0)                 # Sys black
 
 s_QUEEN = []
 s_DRONE = []

@@ -1,4 +1,4 @@
-from config import SCREEN_WIDTH, SCREEN_HEIGHT, PIXEL_SIZE, GRID_SPACES
+from config import *
 import pygame # type: ignore
 
 def in_sprite_area(pos: tuple[int, int], sprite: pygame.sprite.Sprite) -> bool:
@@ -16,14 +16,17 @@ def in_sprite_area(pos: tuple[int, int], sprite: pygame.sprite.Sprite) -> bool:
 
 def get_space(pos: tuple[int, int]) -> tuple[int, int] | None:
     
-    x_dist = SCREEN_WIDTH // GRID_SPACES[0]
-    y_dist = SCREEN_HEIGHT // GRID_SPACES[1]
+    x_dist = GAME_BOARD_SIZE[0] // GRID_SPACES[0]
+    y_dist = GAME_BOARD_SIZE[1] // GRID_SPACES[1]
     
-    column  = pos[0] // x_dist
-    row     = pos[1] // y_dist
+    column  = (pos[0] - GAME_BOARD_OFFSET[0]) // x_dist
+    row     = (pos[1] - GAME_BOARD_OFFSET[1]) // y_dist
     
     if row < 0 or row >= GRID_SPACES[1] or\
         column < 0 or column >= GRID_SPACES[0]:
             return None
         
     return [row, column]
+
+def get_player(y: int) -> int:
+   return int(y > GAME_BOARD_SIZE[1] // 2 + GAME_BOARD_OFFSET[1])

@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from config import *
 import pygame # type: ignore
 from pieces import Queen, Drone, Pawn
-from utils import get_space
+from utils import get_space, get_player
 
 class Space():
     def __init__(self, world_position: tuple[int, int]):
@@ -32,35 +32,34 @@ class Game():
             
             for column, num in enumerate(GRID[row]):
                 
-                x = column * PIXEL_SIZE * SPACE_SIZE + (PIXEL_SIZE * SPACE_SIZE // 2) + column * PIXEL_SIZE
-                y = row * PIXEL_SIZE * SPACE_SIZE + (PIXEL_SIZE * SPACE_SIZE // 2) + row * PIXEL_SIZE
+                x = column * PIXEL_SIZE * SPACE_SIZE + (PIXEL_SIZE * SPACE_SIZE // 2) + column * PIXEL_SIZE + GAME_BOARD_OFFSET[0]
+                y = row * PIXEL_SIZE * SPACE_SIZE + (PIXEL_SIZE * SPACE_SIZE // 2) + row * PIXEL_SIZE + GAME_BOARD_OFFSET[1]
                 
-                player = int(y > SCREEN_HEIGHT // 2)
+                player = get_player(y)
                 
                 new_space = Space((x, y))
                 space_row.append(new_space)
                 
-                match num:
-                    case 0:
-                        piece = None
-                    case 1:
-                        piece = Queen(self, new_space, player)
-                    case 2:
-                        piece = Drone(self, new_space, player)
-                    case 3:
-                        piece = Pawn(self, new_space, player)
-                    case _:
-                        print("Grid has not been initialized correctly")
-                        return None
+                piece = self.get_piece(num, new_space, player)
                 
-                if piece != None:
+                if piece:
                     pieces.add(piece)
                     new_space.piece = piece
-                
             
             self.grid.append(space_row)
         
         return pieces
+    
+    def get_piece(self, n: int, space: Space, player: int):
+        match n:
+            case 1:
+                return Queen(self, space, player)
+            case 2:
+                return Drone(self, space, player)
+            case 3:
+                return Pawn(self, space, player)
+        
+        return None
     
     def capture(self, player: int, piece):
         self.captures[player].append(piece)
@@ -148,7 +147,7 @@ class Piece(ABC, pygame.sprite.Sprite):
             return
         
         old_player = self.player
-        self._player = int(space.world_position[1] > SCREEN_HEIGHT // 2)
+        self._player = get_player(space.world_position[1])
         
         if old_player != self.player:
             self.switched_from_position = self.space.grid_position
