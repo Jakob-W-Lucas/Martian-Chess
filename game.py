@@ -14,8 +14,8 @@ class Game():
     def __init__(self):
         # Player 1 starts
         self.current_player = 0
-        self.player_scores = [0, 0]
-        self.captures = ([], [])
+        self.player_scores = [0 for _ in range(TOTAL_PLAYERS)]
+        self.captures = [pygame.sprite.Group() for _ in range(TOTAL_PLAYERS)]
         self.grid = []
         self.pieces = self.create_pieces()
         
@@ -62,8 +62,21 @@ class Game():
         return None
     
     def capture(self, player: int, piece):
-        self.captures[player].append(piece)
+        self.captures[player].add(piece)
         self.player_scores[player] += piece._value
+        
+        i = len(self.captures[player]) - 1
+        
+        x = SPACE_SIZE * PIXEL_SIZE if player == 1 else SCREEN_WIDTH - SPACE_SIZE * PIXEL_SIZE
+        y = SPACE_SIZE * PIXEL_SIZE if player == 1 else SCREEN_HEIGHT - SPACE_SIZE * PIXEL_SIZE
+        
+        mult = -1 if player == 0 else 1
+        
+        x += mult * (i // 6 * SPACE_SIZE * PIXEL_SIZE) 
+        y += mult * (i % 6 * SPACE_SIZE * PIXEL_SIZE) 
+        
+        piece.rect.center = (x, y)
+        
         print(self.player_scores)
     
     def get_grid_space(self, loc: tuple[int, int]) -> Space | None:

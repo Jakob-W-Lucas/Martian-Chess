@@ -31,6 +31,10 @@ def main():
             for line in game.selected_piece.move_lines:
                 pygame.draw.line(screen, CRT_WHITE, line[0], line[1], width=10)
         
+        for player in range(TOTAL_PLAYERS):
+            game.captures[player].draw(screen)
+                
+        
         # Get key presses
         key = pygame.key.get_pressed()
             
