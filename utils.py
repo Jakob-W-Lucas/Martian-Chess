@@ -31,6 +31,19 @@ def get_space(pos: tuple[int, int]) -> tuple[int, int] | None:
 def get_player(y: int) -> int:
    return int(y > GAME_BOARD_SIZE[1] // 2 + GAME_BOARD_OFFSET[1])
 
+def create_captured_piece(piece, player, num: int):
+    i = num
+        
+    x = SPACE_SIZE * PIXEL_SIZE if player == 0 else SCREEN_WIDTH - SPACE_SIZE * PIXEL_SIZE
+    y = SPACE_SIZE * PIXEL_SIZE if player == 0 else SCREEN_HEIGHT - SPACE_SIZE * PIXEL_SIZE
+    
+    mult = -1 if player == 1 else 1
+    
+    x += mult * (i // 6 * SPACE_SIZE * PIXEL_SIZE) 
+    y += mult * (i % 6 * SPACE_SIZE * PIXEL_SIZE) 
+    
+    piece.rect.center = (x, y)
+
 def get_winner(pieces: tuple, scores: tuple, last_player: int):
     
     win_condition = False

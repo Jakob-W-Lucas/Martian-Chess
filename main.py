@@ -20,22 +20,12 @@ def main():
     # Game loop
     while run:
             
-        # Create the screen background
         screen.fill(CRT_BLACK)
         
-        if game.selected_piece != None:
-            for line in game.selected_piece.move_lines:
-                pygame.draw.line(screen, CRT_WHITE, line[0], line[1], width=10)
+        game.draw(screen)
         
-        for player in range(TOTAL_PLAYERS):
-            game.pieces[player].update()
-            game.pieces[player].draw(screen)
-            game.captures[player].draw(screen)
-        
-        # Get key presses
         key = pygame.key.get_pressed()
             
-        # Exit
         if key[pygame.K_ESCAPE]:
             run = False
         
@@ -43,21 +33,17 @@ def main():
             
             if event.type == pygame.MOUSEBUTTONDOWN:
                 
-                # Mouse position
                 pos = pygame.mouse.get_pos()
                 
-                # Left click to mine cells
                 if event.button == m_LEFT:
                     loc = get_space(pos)
                     
                     if loc:
                         game.select_space(loc)
 
-            # Quit the game
             if event.type == pygame.QUIT:
                 run = False
         
-        # Update the game display
         pygame.display.update()
 
     pygame.quit()

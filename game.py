@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from config import *
 import pygame # type: ignore
 from pieces import Queen, Drone, Pawn
-from utils import get_space, get_player, get_winner
+from utils import get_space, get_player, create_captured_piece, get_winner
 
 class Space():
     def __init__(self, world_position: tuple[int, int]):
@@ -42,7 +42,7 @@ class Game():
                 new_space = Space((x, y))
                 space_row.append(new_space)
                 
-                piece = self.get_piece(num, new_space, player)
+                piece = self.create_piece(num, new_space, player)
                 
                 if piece:
                     pieces[player].add(piece)
@@ -52,32 +52,19 @@ class Game():
         
         return pieces
     
-    def get_piece(self, n: int, space: Space, player: int):
-        match n:
-            case 1:
-                return Queen(self, space, player)
-            case 2:
-                return Drone(self, space, player)
-            case 3:
-                return Pawn(self, space, player)
-        
+    def create_piece(self, num: int, space: Space, player: int):
+        if num == 1:
+            return Queen(self, space, player)
+        elif num == 2:
+            return Drone(self, space, player)
+        elif num == 3:
+            return Pawn(self, space, player)
         return None
     
     def capture(self, player: int, piece):
         self.captures[player].add(piece)
         self.player_scores[player] += piece._value
-        
-        i = len(self.captures[player]) - 1
-        
-        x = SPACE_SIZE * PIXEL_SIZE if player == 0 else SCREEN_WIDTH - SPACE_SIZE * PIXEL_SIZE
-        y = SPACE_SIZE * PIXEL_SIZE if player == 0 else SCREEN_HEIGHT - SPACE_SIZE * PIXEL_SIZE
-        
-        mult = -1 if player == 1 else 1
-        
-        x += mult * (i // 6 * SPACE_SIZE * PIXEL_SIZE) 
-        y += mult * (i % 6 * SPACE_SIZE * PIXEL_SIZE) 
-        
-        piece.rect.center = (x, y)
+        create_captured_piece(piece, player, len(self.captures[player]) - 1)
         
         print(self.player_scores)
     
@@ -113,6 +100,16 @@ class Game():
         
         if self.last_selected_piece:
             get_winner(self.pieces, self.player_scores, self.last_selected_piece.player)
+        
+    def draw(self, screen):
+        if self.selected_piece is not None:
+            for line in self.selected_piece.move_lines:
+                pygame.draw.line(screen, CRT_WHITE, line[0], line[1], width=LINE_WIDTH)
+        
+        for player in range(TOTAL_PLAYERS):
+            self.pieces[player].update()
+            self.pieces[player].draw(screen)
+            self.captures[player].draw(screen)
     
 # Die abstract base class
 class Piece(ABC, pygame.sprite.Sprite):
