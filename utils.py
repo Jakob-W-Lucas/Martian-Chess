@@ -30,3 +30,24 @@ def get_space(pos: tuple[int, int]) -> tuple[int, int] | None:
 
 def get_player(y: int) -> int:
    return int(y > GAME_BOARD_SIZE[1] // 2 + GAME_BOARD_OFFSET[1])
+
+def get_winner(pieces: tuple, scores: tuple, last_player: int):
+    
+    win_condition = False
+    for player in range(TOTAL_PLAYERS):
+        if len(pieces[player]) == 0:
+            win_condition = True
+            
+    if not win_condition:
+        return
+                
+    winner = -1
+    highest = -1
+    for player, score in enumerate(scores):
+        if score == highest:
+            winner = last_player
+        elif score > highest:
+            winner = player
+            highest = score
+    
+    print(f"Player {winner} has won!")

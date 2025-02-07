@@ -56,6 +56,10 @@ class Piece(ABC, pygame.sprite.Sprite):
         self._player = int(space.world_position[1] > SCREEN_HEIGHT // 2)
         
         if old_player != self.player:
+            
+            self._game.pieces[old_player].remove(self)
+            self._game.pieces[self.player].add(self)
+            
             self.switched_from_position = self.space.grid_position
         else:
             self.switched_space = None
@@ -76,7 +80,7 @@ class Piece(ABC, pygame.sprite.Sprite):
         
         self.game.capture(self.player, space.piece)
         
-        self.game.pieces.remove(space.piece)
+        self.game.pieces[space.piece._player].remove(space.piece)
         
         space.piece = None
         

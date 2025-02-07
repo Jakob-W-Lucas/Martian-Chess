@@ -23,17 +23,14 @@ def main():
         # Create the screen background
         screen.fill(CRT_BLACK)
         
-        game.pieces.update()
-        
-        game.pieces.draw(screen)
-        
         if game.selected_piece != None:
             for line in game.selected_piece.move_lines:
                 pygame.draw.line(screen, CRT_WHITE, line[0], line[1], width=10)
         
         for player in range(TOTAL_PLAYERS):
+            game.pieces[player].update()
+            game.pieces[player].draw(screen)
             game.captures[player].draw(screen)
-                
         
         # Get key presses
         key = pygame.key.get_pressed()

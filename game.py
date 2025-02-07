@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from config import *
 import pygame # type: ignore
 from pieces import Queen, Drone, Pawn
-from utils import get_space, get_player
+from utils import get_space, get_player, get_winner
 
 class Space():
     def __init__(self, world_position: tuple[int, int]):
@@ -21,10 +21,12 @@ class Game():
         
         self.selected_piece = None
         self.last_selected_piece = None
+        
+        self.game_over = False
     
     def create_pieces(self) -> pygame.sprite.Group:
         
-        pieces = pygame.sprite.Group()
+        pieces = [pygame.sprite.Group() for _ in range(TOTAL_PLAYERS)]
     
         for row in range(len(GRID)):
             
@@ -43,7 +45,7 @@ class Game():
                 piece = self.get_piece(num, new_space, player)
                 
                 if piece:
-                    pieces.add(piece)
+                    pieces[player].add(piece)
                     new_space.piece = piece
             
             self.grid.append(space_row)
@@ -67,10 +69,10 @@ class Game():
         
         i = len(self.captures[player]) - 1
         
-        x = SPACE_SIZE * PIXEL_SIZE if player == 1 else SCREEN_WIDTH - SPACE_SIZE * PIXEL_SIZE
-        y = SPACE_SIZE * PIXEL_SIZE if player == 1 else SCREEN_HEIGHT - SPACE_SIZE * PIXEL_SIZE
+        x = SPACE_SIZE * PIXEL_SIZE if player == 0 else SCREEN_WIDTH - SPACE_SIZE * PIXEL_SIZE
+        y = SPACE_SIZE * PIXEL_SIZE if player == 0 else SCREEN_HEIGHT - SPACE_SIZE * PIXEL_SIZE
         
-        mult = -1 if player == 0 else 1
+        mult = -1 if player == 1 else 1
         
         x += mult * (i // 6 * SPACE_SIZE * PIXEL_SIZE) 
         y += mult * (i % 6 * SPACE_SIZE * PIXEL_SIZE) 
@@ -108,6 +110,9 @@ class Game():
         
         self.last_selected_piece = self.selected_piece
         self.selected_piece = None
+        
+        if self.last_selected_piece:
+            get_winner(self.pieces, self.player_scores, self.last_selected_piece.player)
     
 # Die abstract base class
 class Piece(ABC, pygame.sprite.Sprite):
@@ -183,7 +188,7 @@ class Piece(ABC, pygame.sprite.Sprite):
         
         self.game.capture(self.player, space.piece)
         
-        self.game.pieces.remove(space.piece)
+        self.game.pieces[space.piece._player].remove(space.piece)
         
         space.piece = None
         
